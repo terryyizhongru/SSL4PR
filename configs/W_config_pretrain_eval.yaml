@@ -1,5 +1,5 @@
 data:
-  fold_root_path: "/home/yzhong/gits/SSL4PR/pcgita_splits/"
+  fold_root_path: "/home/yzhong/gits/SSL4PR/tt_splits/"
   max_length_in_seconds: 10
   padding: max_length
   truncation: true
@@ -40,9 +40,9 @@ model:
   
 
 training:
-  # checkpoint_path: "/data/storage1t//"
-  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS/"
-  batch_size: 16
+  checkpoint_path: "/data/storage1t/gits/SSL4PR-wavlm-base/"
+  # checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS/"
+  batch_size: 64
   gradient_accumulation_steps: 1
   num_epochs: 10
   learning_rate: 0.0001
@@ -53,7 +53,7 @@ training:
   verbose: true
 
   use_cuda: true
-  multi_gpu: false
+  multi_gpu: true
 
   use_comet: true
   comet_project_name: "ssl4pr"
@@ -62,7 +62,7 @@ training:
   validation:
     active: true
     validation_split: 0.1
-    validation_type: "speaker" # random, speaker
+    validation_type: "random" # random, speaker
 
     metric: accuracy # loss, accuracy, f1, precision, recall
     metric_lower_is_better: false

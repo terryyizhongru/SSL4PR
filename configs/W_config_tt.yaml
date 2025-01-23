@@ -1,12 +1,12 @@
 data:
-  fold_root_path: "/home/yzhong/gits/SSL4PR/pcgita_splits/"
+  fold_root_path: "/home/yzhong/gits/TurnTakingPD/splits/allmerged_wavs5_unnorm.txt_10fold"
   max_length_in_seconds: 10
   padding: max_length
   truncation: true
   ssl: true
   magnitude: false
   articulation: false
-  num_folds: 1
+  num_folds: 10
   sample_rate: 16000
   random_crop_longer_audio: true
   repeat_shorter_audio: true
@@ -41,7 +41,7 @@ model:
 
 training:
   # checkpoint_path: "/data/storage1t//"
-  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS/"
+  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS_tt_merged5_random/"
   batch_size: 16
   gradient_accumulation_steps: 1
   num_epochs: 10
@@ -62,7 +62,7 @@ training:
   validation:
     active: true
     validation_split: 0.1
-    validation_type: "speaker" # random, speaker
+    validation_type: "random" # random, speaker
 
     metric: accuracy # loss, accuracy, f1, precision, recall
     metric_lower_is_better: false

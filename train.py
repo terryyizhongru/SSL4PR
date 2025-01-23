@@ -25,6 +25,8 @@ from addict import Dict
 
 import numpy as np
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 def set_all_seeds(seed):
     try:
         random.seed(seed)
@@ -124,7 +126,6 @@ def compute_metrics(reference, predictions, verbose=False, is_binary_classificat
     
     accuracy = accuracy_score(reference, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(reference, predictions, average="macro")
-    
     if is_binary_classification:
         roc_auc = roc_auc_score(reference, predictions)
         cm = confusion_matrix(reference, predictions)
@@ -148,6 +149,7 @@ def compute_metrics(reference, predictions, verbose=False, is_binary_classificat
         print(f"ROC AUC: {roc_auc}")
         print(f"Sensitivity: {sensitivity}")
         print(f"Specificity: {specificity}")
+        print(f"balanced_accuracy: {(sensitivity + specificity) / 2}")
         
     return {
         "accuracy": accuracy,
@@ -157,6 +159,7 @@ def compute_metrics(reference, predictions, verbose=False, is_binary_classificat
         "roc_auc": roc_auc,
         "sensitivity": sensitivity,
         "specificity": specificity,
+        "balanced_accuracy": (sensitivity + specificity) / 2,
     }
 
 def get_model(config):
@@ -197,17 +200,28 @@ def get_dataloaders(train_path, test_path, class_mapping, config):
             unique_speaker_ids = list(set(speaker_ids))
             unique_speaker_ids.sort()
             random.shuffle(unique_speaker_ids)
-            train_speaker_ids, val_speaker_ids = train_test_split(
-                unique_speaker_ids, test_size=config.training.validation.validation_split, random_state=42
-            )
-            t_paths, t_labels, v_paths, v_labels = [], [], [], []
-            for path, label, speaker_id in zip(paths, labels, speaker_ids):
-                if speaker_id in train_speaker_ids:
-                    t_paths.append(path)
-                    t_labels.append(label)
+            seed = 42
+            flag = False
+            while not flag:
+                train_speaker_ids, val_speaker_ids = train_test_split(
+                    unique_speaker_ids, test_size=config.training.validation.validation_split, random_state=seed
+                )
+                t_paths, t_labels, v_paths, v_labels = [], [], [], []
+                for path, label, speaker_id in zip(paths, labels, speaker_ids):
+                    if speaker_id in train_speaker_ids:
+                        t_paths.append(path)
+                        t_labels.append(label)
+                    else:
+                        v_paths.append(path)
+                        v_labels.append(label)
+                # make sure v_labels has all the classes 0 and 1
+                if len(set(v_labels)) == 2:
+                    flag = True
                 else:
-                    v_paths.append(path)
-                    v_labels.append(label)
+                    print("v_labels does not have all the classes")
+                    seed += 1
+            # print("t_paths", t_paths[:100])
+            # print("v_paths", v_paths)
         elif config.training.validation.validation_type == "random":
             # just 90/10 split - on paths directly
             paths, labels = df_train.audio_path.values.tolist(), df_train[config.training.label_key].values.tolist()
@@ -299,8 +313,8 @@ if __name__ == "__main__":
     # create comet experiment if needed
     if config.training.use_comet:
         experiment = Experiment(
-            api_key=os.environ["COMET_API_KEY"],
-            workspace=os.environ["COMET_WORKSPACE"],
+            api_key="zAyPDMX062pRKbbjm6JY6z6RP",
+            workspace="terryyizhongru",
             project_name=config.training.comet_project_name,
         )
         experiment.set_name(config.training.comet_experiment_name)
@@ -329,6 +343,7 @@ if __name__ == "__main__":
         "roc_auc": {},
         "sensitivity": {},
         "specificity": {},
+        "balanced_accuracy": {},
     }
 
     test_results = {
@@ -339,6 +354,7 @@ if __name__ == "__main__":
         "roc_auc": {},
         "sensitivity": {},
         "specificity": {},
+        "balanced_accuracy": {},
     }
 
     for test_fold in range(1, config.data.num_folds+1):
@@ -379,7 +395,7 @@ if __name__ == "__main__":
         print(loss_fn)
         
         # train and validate
-        best_val_accuracy = 0.0
+        best_metric = 0.0
         for epoch in range(config.training.num_epochs):
             print(f"Epoch: {epoch + 1}/{config.training.num_epochs}")
             
@@ -411,6 +427,7 @@ if __name__ == "__main__":
                     val_reference, val_predictions, verbose=config.training.verbose, is_binary_classification=is_binary_classification
                 )
                 
+                
                 accuracy = m_dict["accuracy"]
                 precision = m_dict["precision"]
                 recall = m_dict["recall"]
@@ -418,6 +435,7 @@ if __name__ == "__main__":
                 roc_auc = m_dict["roc_auc"]
                 sensitivity = m_dict["sensitivity"]
                 specificity = m_dict["specificity"]
+                balanced_accuracy = m_dict["balanced_accuracy"]
 
                 # save metrics per fold
                 if test_fold not in results["accuracy"]:
@@ -428,6 +446,7 @@ if __name__ == "__main__":
                     results["roc_auc"][test_fold] = []
                     results["sensitivity"][test_fold] = []
                     results["specificity"][test_fold] = []
+                    results["balanced_accuracy"][test_fold] = []
 
                 results["accuracy"][test_fold].append(accuracy)
                 results["precision"][test_fold].append(precision)
@@ -436,6 +455,7 @@ if __name__ == "__main__":
                 results["roc_auc"][test_fold] = roc_auc
                 results["sensitivity"][test_fold] = sensitivity
                 results["specificity"][test_fold] = specificity
+                results["balanced_accuracy"][test_fold] = balanced_accuracy
 
                 # log metrics to comet
                 if experiment is not None:
@@ -448,16 +468,19 @@ if __name__ == "__main__":
                     experiment.log_metric("roc_auc_fold_" + str(test_fold), roc_auc, step=epoch+1)
                     experiment.log_metric("sensitivity_fold_" + str(test_fold), sensitivity, step=epoch+1)
                     experiment.log_metric("specificity_fold_" + str(test_fold), specificity, step=epoch+1)
+                    experiment.log_metric("balanced_accuracy_fold_" + str(test_fold), specificity, step=epoch+1)
 
                 # save the best model
-                if accuracy > best_val_accuracy:
-                    print(f"Found a better model with accuracy: {accuracy:.3f} - previous best: {best_val_accuracy:.3f}")
-                    best_val_accuracy = accuracy
+                if balanced_accuracy > best_metric:
+                    print(f"Found a better model with balanced_accuracy: {balanced_accuracy:.3f} - previous best: {best_metric:.3f}")
+                    best_metric = balanced_accuracy
                     # check if DataParallel
                     if isinstance(model, torch.nn.DataParallel):
                         torch.save(model.module.state_dict(), config.training.checkpoint_path + f"/fold_{test_fold}.pt")
                     else:
                         torch.save(model.state_dict(), config.training.checkpoint_path + f"/fold_{test_fold}.pt")
+                # torch.save(model.state_dict(), config.training.checkpoint_path + f"/fold_{test_fold}_epoch{epoch}.pt")
+
             else:
                 # save the model
                 # check if DataParallel
@@ -493,6 +516,7 @@ if __name__ == "__main__":
         roc_auc = m_dict["roc_auc"]
         sensitivity = m_dict["sensitivity"]
         specificity = m_dict["specificity"]
+        balanced_accuracy = m_dict["balanced_accuracy"]
         
         test_results["accuracy"][test_fold] = accuracy
         test_results["precision"][test_fold] = precision
@@ -501,6 +525,7 @@ if __name__ == "__main__":
         test_results["roc_auc"][test_fold] = roc_auc
         test_results["sensitivity"][test_fold] = sensitivity
         test_results["specificity"][test_fold] = specificity
+        test_results["balanced_accuracy"][test_fold] = balanced_accuracy
 
         print(f"Accuracy test fold {test_fold}: {accuracy:.3f}")
         print(f"Precision test fold {test_fold}: {precision:.3f}")
@@ -509,6 +534,7 @@ if __name__ == "__main__":
         print(f"ROC AUC test fold {test_fold}: {roc_auc:.3f}")
         print(f"Sensitivity test fold {test_fold}: {sensitivity:.3f}")
         print(f"Specificity test fold {test_fold}: {specificity:.3f}")
+        print(f"Balanced accuracy test fold {test_fold}: {balanced_accuracy:.3f}")
         print(f"-" * 50)
 
         # log metrics to comet
