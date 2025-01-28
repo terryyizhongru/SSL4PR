@@ -25,7 +25,7 @@ from addict import Dict
 
 import numpy as np
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def set_all_seeds(seed):
     try:
@@ -127,14 +127,21 @@ def compute_metrics(reference, predictions, verbose=False, is_binary_classificat
     accuracy = accuracy_score(reference, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(reference, predictions, average="macro")
     if is_binary_classification:
-        roc_auc = roc_auc_score(reference, predictions)
-        cm = confusion_matrix(reference, predictions)
-        tp = cm[1, 1]
-        tn = cm[0, 0]
-        fp = cm[0, 1]
-        fn = cm[1, 0]
-        sensitivity = tp / (tp + fn)
-        specificity = tn / (tn + fp)
+        try:
+            roc_auc = roc_auc_score(reference, predictions)
+            cm = confusion_matrix(reference, predictions)
+            tp = cm[1, 1]
+            tn = cm[0, 0]
+            fp = cm[0, 1]
+            fn = cm[1, 0]
+            sensitivity = tp / (tp + fn)
+            specificity = tn / (tn + fp)
+        except:
+            print("all one class, no ROC AUC")
+            roc_auc = 0.0
+            sensitivity = 0.0
+            specificity = 0.0
+        
     else:
         print("ROC AUC is not defined for multiclass classification")
         roc_auc = 0.0

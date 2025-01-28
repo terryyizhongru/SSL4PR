@@ -92,4 +92,6 @@ class AudioClassificationDataset(Dataset):
         else:
             item["labels"] = torch.tensor(self.class_mapping[self.labels[idx]], dtype=torch.long)
 
+        item["spk_id"] = torch.tensor(int(audio_path.split("subj-")[1][:4]), dtype=torch.long)
+    
         return item
