@@ -25,7 +25,7 @@ from addict import Dict
 
 import numpy as np
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def set_all_seeds(seed):
     try:
@@ -207,7 +207,7 @@ def get_dataloaders(train_path, test_path, class_mapping, config):
             unique_speaker_ids = list(set(speaker_ids))
             unique_speaker_ids.sort()
             random.shuffle(unique_speaker_ids)
-            seed = 42
+            seed = config.training.seed
             flag = False
             while not flag:
                 train_speaker_ids, val_speaker_ids = train_test_split(

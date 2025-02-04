@@ -1,5 +1,5 @@
 data:
-  fold_root_path: "/home/yzhong/gits/TurnTakingPD/splits/allmerged_wavs5_unnorm.txt_10fold"
+  fold_root_path: "/home/yzhong/gits/TurnTakingPD/splits/all1234merged_wavs_BT.txt_10fold"
   max_length_in_seconds: 10
   padding: max_length
   truncation: true
@@ -41,7 +41,7 @@ model:
 
 training:
   # checkpoint_path: "/data/storage1t//"
-  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS_tt_merged5_random/"
+  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS_tt_all1234merged_wavs_BT.txt_10fold"
   batch_size: 16
   gradient_accumulation_steps: 1
   num_epochs: 10
@@ -49,7 +49,7 @@ training:
   weight_decay: 0.01
   num_workers: 8
   pin_memory: true
-  seed: 42
+  seed: 25
   verbose: true
 
   use_cuda: true

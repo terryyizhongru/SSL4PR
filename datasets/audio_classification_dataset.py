@@ -92,6 +92,23 @@ class AudioClassificationDataset(Dataset):
         else:
             item["labels"] = torch.tensor(self.class_mapping[self.labels[idx]], dtype=torch.long)
 
-        item["spk_id"] = torch.tensor(int(audio_path.split("subj-")[1][:4]), dtype=torch.long)
-    
+        if "subj-" in audio_path:
+            item["spk_id"] = torch.tensor(int(audio_path.split("subj-")[1][:4]), dtype=torch.long)
+        else:
+            basename = audio_path.split("/")[-1]
+            if "readtext" in basename:
+                spkid = basename.split('readtext')[0].rstrip('_')
+            elif "-" in basename:
+                spkid = basename.split('-')[0]
+            else:
+                spkid = basename.split('_')[0]
+            if "AVPEPUDEAC" in spkid:
+                spkid = spkid.replace("AVPEPUDEAC", "2")
+            elif "AVPEPUDEA" in spkid:
+                spkid = spkid.replace("AVPEPUDEA", "1")
+            else:
+                raise ValueError(f"Unknown spk_id {spkid}")
+            item["spk_id"] = torch.tensor(int(spkid), dtype=torch.long)
+
+        
         return item

@@ -6,6 +6,7 @@ import yaml
 import argparse
 from tqdm import tqdm
 import pdb
+from collections import defaultdict
 
 
 import torch
@@ -28,14 +29,14 @@ from collections import defaultdict
 import numpy as np
 from train import *
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def compute_metrics_by_speaker(spk_metrics, spk_ids, reference, predictions, verbose=False, is_binary_classification=False):
     
     if len(spk_ids) != len(reference) or len(spk_ids) != len(predictions):
         print("Lengths of spkids, reference, and predictions do not match")
         return None
-    print(spk_ids, reference, predictions)
+    # print(spk_ids, reference, predictions)
     spk_dict = defaultdict(lambda: {"reference": [], "prediction": []})
     for s, r, p in zip(spk_ids, reference, predictions):
         spk_dict[s]["reference"].append(r)
@@ -45,7 +46,7 @@ def compute_metrics_by_speaker(spk_metrics, spk_ids, reference, predictions, ver
     for spk in spk_dict.keys():
         reference = spk_dict[spk]["reference"]
         predictions = spk_dict[spk]["prediction"]
-        print(reference, predictions)
+        # print(reference, predictions)
         m_dict = compute_metrics_one(
             reference, predictions, verbose=verbose, is_binary_classification=is_binary_classification
         )
@@ -73,6 +74,53 @@ def load_demographics(file_path):
             sex = parts[idx_sex]
             demogr[pid] = (age, sex)
     return demogr
+
+
+def load_pcgita_metadata(csv_path):
+    df = pd.read_csv(csv_path)
+
+    # Display columns to verify 'speaker_id' exists
+    print("Columns in CSV:", df.columns.tolist())
+
+    # Ensure 'speaker_id' column exists
+    if 'speaker_id' not in df.columns:
+        raise KeyError("The CSV file must contain a 'speaker_id' column.")
+
+    # Select relevant columns including 'speaker_id'
+    selected_columns = ['speaker_id', 'status', 'UPDRS', 'UPDRS-speech', 'H/Y', 'SEX', 'AGE', 'time after diagnosis']
+    df_selected = df[selected_columns]
+
+    # Check for duplicate 'speaker_id's
+    duplicates = df_selected.duplicated(subset='speaker_id', keep=False)
+    if duplicates.any():
+        duplicated_entries = df_selected[duplicates]
+        
+        # Verify that all duplicated entries have identical values in selected columns
+        duplicates_unique = duplicated_entries.drop_duplicates()
+        if duplicates_unique.shape[0] != duplicated_entries['speaker_id'].nunique():
+            raise ValueError("Duplicate 'speaker_id' values found with differing data in selected columns.")
+        else:
+            # Drop duplicate rows, keeping the first occurrence
+            df_selected = df_selected.drop_duplicates(subset='speaker_id', keep='first')
+
+    # Create dictionary with 'speaker_id' as keys and selected columns as values
+    data_dict = df_selected.set_index('speaker_id').to_dict(orient='index')
+    # Create new dict with renamed keys
+    renamed_dict = {}
+
+    for spkid, values in data_dict.items():
+        # Apply renaming rules
+        if "AVPEPUDEAC" in spkid:
+            new_spkid = int(spkid.replace("AVPEPUDEAC", "2"))
+        elif "AVPEPUDEA" in spkid:
+            new_spkid = int(spkid.replace("AVPEPUDEA", "1"))
+        else:
+            raise ValueError(f"Unrecognized speaker ID format: {spkid}")
+            
+        renamed_dict[new_spkid] = values
+
+    data_dict = renamed_dict
+    return data_dict
 
 
 def compute_metrics_one(reference, predictions, verbose=False, is_binary_classification=False):
@@ -152,16 +200,8 @@ if __name__ == "__main__":
         "specificity": {},
         "balanced_accuracy": {},
     }
-    test_results_by_speaker = {
-    "accuracy": {},
-    "precision": {},
-    "recall": {},
-    "f1": {},
-    "roc_auc": {},
-    "sensitivity": {},
-    "specificity": {},
-    "balanced_accuracy": {},
-            }
+    test_results_by_speaker = defaultdict(dict)
+    
     for test_fold in range(1, config.data.num_folds+1):
         
         # info about the fold
@@ -205,6 +245,10 @@ if __name__ == "__main__":
             for batch in test_dl:
                 test_spk_ids.extend(batch['spk_id'].tolist())
             
+            if config.training.validation.dataset == "pcgita":
+                metadata_dict = load_pcgita_metadata(test_path)
+                print(metadata_dict)
+
             spk_m_dict = {}
             spk_m_dict = compute_metrics_by_speaker(
                 spk_m_dict, test_spk_ids, test_reference, test_predictions, verbose=config.training.verbose, is_binary_classification=is_binary_classification
@@ -221,6 +265,15 @@ if __name__ == "__main__":
                 test_results_by_speaker["sensitivity"][spk_id] = spk_m_dict[spk_id]["sensitivity"]
                 test_results_by_speaker["specificity"][spk_id] = spk_m_dict[spk_id]["specificity"]
                 test_results_by_speaker["balanced_accuracy"][spk_id] = spk_m_dict[spk_id]["balanced_accuracy"]
+                if config.training.validation.dataset == "pcgita":
+                    test_results_by_speaker["UPDRS"][spk_id] = metadata_dict[spk_id]["UPDRS"]
+                    test_results_by_speaker["UPDRS-speech"][spk_id] = metadata_dict[spk_id]["UPDRS-speech"]
+                    test_results_by_speaker["HY"][spk_id] = metadata_dict[spk_id]["H/Y"]
+                    test_results_by_speaker["age"][spk_id] = metadata_dict[spk_id]["AGE"]
+                    test_results_by_speaker["sex"][spk_id] = metadata_dict[spk_id]['SEX']
+                    test_results_by_speaker["TAD"][spk_id] = metadata_dict[spk_id]["time after diagnosis"]
+                    test_results_by_speaker["status"][spk_id] = metadata_dict[spk_id]["status"]
+                
             # calculate metrics
         m_dict = compute_metrics(
             test_reference, test_predictions, verbose=config.training.verbose, is_binary_classification=is_binary_classification
@@ -273,77 +326,128 @@ if __name__ == "__main__":
     fw.close()
     
     if config.training.validation.by_speaker or config.training.validation.by_gender:
-        results_df = pd.DataFrame(test_results_by_speaker)
-        results_df.index.name = "fold_or_id"
-        results_df.reset_index(inplace=True)
-    
-        demo_dict = load_demographics(DEMOGR_FILE)
-        results_df['sex'] = results_df['fold_or_id'].apply(lambda x: demo_dict.get(str(x), ('',''))[1])
-        results_df['age'] = results_df['fold_or_id'].apply(lambda x: float(demo_dict.get(str(x), ('',''))[0]))
-        results_df = results_df[['fold_or_id', 'accuracy', 'sex', 'age']]
-
-        df_hc = results_df[results_df['fold_or_id'].astype(int) < 2200].sort_values(by="accuracy", ascending=True)
-        df_pd = results_df[results_df['fold_or_id'].astype(int) >= 2200].sort_values(by="accuracy", ascending=True)
-        results_df = results_df.sort_values(by="accuracy", ascending=True)
-        results_df.to_csv(config.training.checkpoint_path + "/test_results_by_speaker.csv", index=False) 
-        df_hc.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_hc.csv", index=False)
-        df_pd.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_pd.csv", index=False)
-
-        pdb.set_trace()
-        # if config.training.validation.by_gender:
-        numeric_cols = results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns
-        grouped_df = results_df.groupby('sex')[numeric_cols].mean()
-        grouped_df.to_csv(config.training.checkpoint_path + "/test_results_by_sex.csv", index=True)
-
-        # cal age range
-        bins_3 = [54, 65, 75, 85]
-        labels_3 = ["54-65", "65-75", "75-85"]
-        df_hc_3 = results_df[results_df['fold_or_id'].astype(int) < 2200].copy(deep=True)
-        df_pd_3 = results_df[results_df['fold_or_id'].astype(int) >= 2200].copy(deep=True)
-        results_df_3 = results_df.copy(deep=True)
-        df_hc_3["age_group"] = pd.cut(df_hc["age"], bins=bins_3, right=False, labels=labels_3)
-        df_pd_3["age_group"] = pd.cut(df_pd["age"], bins=bins_3, right=False, labels=labels_3)
-        results_df_3["age_group"] = pd.cut(results_df["age"], bins=bins_3, right=False, labels=labels_3)
-
-        hc_age_group_mean = df_hc_3.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group").mean()
-        pd_age_group_mean = df_pd_3.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group").mean()
-        all_age_group_mean = results_df_3.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group").mean()
-
+        if config.training.validation.dataset == "TT":
+            results_df = pd.DataFrame(test_results_by_speaker)
+            results_df.index.name = "fold_or_id"
+            results_df.reset_index(inplace=True)
         
-        bins_5yr = [54, 59, 64, 69, 74, 79, 85]
-        labels_5yr = ["54-59", "59-64", "64-69", "69-74", "74-79", "79-85"]
-        df_hc_5 = results_df[results_df['fold_or_id'].astype(int) < 2200].copy(deep=True)
-        df_pd_5 = results_df[results_df['fold_or_id'].astype(int) >= 2200].copy(deep=True)
-        results_df_5 = results_df.copy(deep=True)
-        df_hc_5["age_group_5yr"] = pd.cut(df_hc["age"], bins=bins_5yr, right=False, labels=labels_5yr)
-        df_pd_5["age_group_5yr"] = pd.cut(df_pd["age"], bins=bins_5yr, right=False, labels=labels_5yr)
-        results_df_5["age_group_5yr"] = pd.cut(results_df["age"], bins=bins_5yr, right=False, labels=labels_5yr)
+            demo_dict = load_demographics(DEMOGR_FILE)
+            results_df['sex'] = results_df['fold_or_id'].apply(lambda x: demo_dict.get(str(x), ('',''))[1])
+            results_df['age'] = results_df['fold_or_id'].apply(lambda x: float(demo_dict.get(str(x), ('',''))[0]))
+            results_df = results_df[['fold_or_id', 'accuracy', 'sex', 'age']]
 
-        hc_age_group_5yr_mean = df_hc_5.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group_5yr").mean()
-        pd_age_group_5yr_mean = df_pd_5.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group_5yr").mean()
-        all_age_group_5yr_mean = results_df_5.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group_5yr").mean()
+            df_hc = results_df[results_df['fold_or_id'].astype(int) < 2200].sort_values(by="accuracy", ascending=True)
+            df_pd = results_df[results_df['fold_or_id'].astype(int) >= 2200].sort_values(by="accuracy", ascending=True)
+            results_df = results_df.sort_values(by="accuracy", ascending=True)
+            results_df.to_csv(config.training.checkpoint_path + "/test_results_by_speaker.csv", index=False) 
+            df_hc.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_hc.csv", index=False)
+            df_pd.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_pd.csv", index=False)
 
-        with open(config.training.checkpoint_path + "/age_group_results.txt", "w") as f:
-            f.write("HC by 3-range:\n")
-            f.write(hc_age_group_mean.to_string())
-            f.write("\n\nPD by 3-range:\n") 
-            f.write(pd_age_group_mean.to_string())
-            f.write("\n\nAll by 3-range:\n")
-            f.write(all_age_group_mean.to_string())
-            f.write("\n\nHC by 5-year steps:\n")
-            f.write(hc_age_group_5yr_mean.to_string())
-            f.write("\n\nPD by 5-year steps:\n") 
-            f.write(pd_age_group_5yr_mean.to_string())
-            f.write("\n\nAll by 5-year steps:\n")
-            f.write(all_age_group_5yr_mean.to_string())
+            # if config.training.validation.by_gender:
+            numeric_cols = results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns
+            grouped_df = results_df.groupby('sex')[numeric_cols].mean()
+            grouped_df.to_csv(config.training.checkpoint_path + "/test_results_by_sex.csv", index=True)
 
-        fw = open(config.training.checkpoint_path + "/test_results_average_speaker.txt", "w")
-        for metric in results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns:
-            mean_metric = results_df[metric].mean()
-            std_metric = results_df[metric].std()
-            print(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}")
-            fw.write(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}\n")
-        fw.close()
-    # print average of each metric (column)
+            # cal age range
+            bins_3 = [54, 65, 75, 85]
+            labels_3 = ["54-65", "65-75", "75-85"]
+            df_hc_3 = results_df[results_df['fold_or_id'].astype(int) < 2200].copy(deep=True)
+            df_pd_3 = results_df[results_df['fold_or_id'].astype(int) >= 2200].copy(deep=True)
+            results_df_3 = results_df.copy(deep=True)
+            df_hc_3["age_group"] = pd.cut(df_hc["age"], bins=bins_3, right=False, labels=labels_3)
+            df_pd_3["age_group"] = pd.cut(df_pd["age"], bins=bins_3, right=False, labels=labels_3)
+            results_df_3["age_group"] = pd.cut(results_df["age"], bins=bins_3, right=False, labels=labels_3)
+
+            hc_age_group_mean = df_hc_3.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group").mean()
+            pd_age_group_mean = df_pd_3.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group").mean()
+            all_age_group_mean = results_df_3.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group").mean()
 
             
+            bins_5yr = [54, 59, 64, 69, 74, 79, 85]
+            labels_5yr = ["54-59", "59-64", "64-69", "69-74", "74-79", "79-85"]
+            df_hc_5 = results_df[results_df['fold_or_id'].astype(int) < 2200].copy(deep=True)
+            df_pd_5 = results_df[results_df['fold_or_id'].astype(int) >= 2200].copy(deep=True)
+            results_df_5 = results_df.copy(deep=True)
+            df_hc_5["age_group_5yr"] = pd.cut(df_hc["age"], bins=bins_5yr, right=False, labels=labels_5yr)
+            df_pd_5["age_group_5yr"] = pd.cut(df_pd["age"], bins=bins_5yr, right=False, labels=labels_5yr)
+            results_df_5["age_group_5yr"] = pd.cut(results_df["age"], bins=bins_5yr, right=False, labels=labels_5yr)
+
+            hc_age_group_5yr_mean = df_hc_5.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group_5yr").mean()
+            pd_age_group_5yr_mean = df_pd_5.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group_5yr").mean()
+            all_age_group_5yr_mean = results_df_5.drop(['fold_or_id', 'sex'], axis=1).groupby("age_group_5yr").mean()
+
+            with open(config.training.checkpoint_path + "/age_group_results.txt", "w") as f:
+                f.write("HC by 3-range:\n")
+                f.write(hc_age_group_mean.to_string())
+                f.write("\n\nPD by 3-range:\n") 
+                f.write(pd_age_group_mean.to_string())
+                f.write("\n\nAll by 3-range:\n")
+                f.write(all_age_group_mean.to_string())
+                f.write("\n\nHC by 5-year steps:\n")
+                f.write(hc_age_group_5yr_mean.to_string())
+                f.write("\n\nPD by 5-year steps:\n") 
+                f.write(pd_age_group_5yr_mean.to_string())
+                f.write("\n\nAll by 5-year steps:\n")
+                f.write(all_age_group_5yr_mean.to_string())
+
+            fw = open(config.training.checkpoint_path + "/test_results_average_speaker.txt", "w")
+            for metric in results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns:
+                mean_metric = results_df[metric].mean()
+                std_metric = results_df[metric].std()
+                print(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}")
+                fw.write(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}\n")
+            fw.close()
+            
+        # print average of each metric (column)
+        elif config.training.validation.dataset == "pcgita":
+            results_df = pd.DataFrame(test_results_by_speaker)
+            results_df.index.name = "fold_or_id"
+            results_df.reset_index(inplace=True)
+
+            columns_to_drop = ['precision', 'recall', 'f1', 'roc_auc', 'sensitivity', 'specificity', 'balanced_accuracy']
+            results_df.drop(columns=columns_to_drop, inplace=True)        
+
+            df_hc = results_df[results_df['status']=='hc'].sort_values(by="accuracy", ascending=True)
+            df_pd = results_df[results_df['status']=='pd'].sort_values(by="accuracy", ascending=True)
+            results_df = results_df.sort_values(by="accuracy", ascending=True)
+            results_df.to_csv(config.training.checkpoint_path + "/test_results_by_speaker.csv", index=False) 
+            df_hc.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_hc.csv", index=False)
+            df_pd.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_pd.csv", index=False)
+
+            # if config.training.validation.by_gender:
+            numeric_cols = results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns
+            grouped_df = results_df.groupby('sex')[numeric_cols].mean()
+            grouped_df.to_csv(config.training.checkpoint_path + "/test_results_by_sex.csv", index=True)
+
+                      # cal age range
+            bins_3 = [30, 40, 50, 60, 70, 80, 90]  # 6 bins covering 30-90
+            labels_3 = ["30-40", "40-50", "50-60", "60-70", "70-80", "80-90"]
+            df_hc_3 = results_df[results_df['status']=='hc'].copy(deep=True)
+            df_pd_3 = results_df[results_df['status']=='pd'].copy(deep=True)
+            results_df_3 = results_df.copy(deep=True)
+            df_hc_3["age_group"] = pd.cut(df_hc["age"], bins=bins_3, right=False, labels=labels_3)
+            df_pd_3["age_group"] = pd.cut(df_pd["age"], bins=bins_3, right=False, labels=labels_3)
+            results_df_3["age_group"] = pd.cut(results_df["age"], bins=bins_3, right=False, labels=labels_3)
+            pdb.set_trace()
+            numeric_cols = results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns
+            # hc_age_group_mean = df_hc_3.drop(['fold_or_id', 'sex'], axis=1).select_dtypes(include=['number']).columns
+            hc_age_group_mean = df_hc_3.groupby("age_group")[numeric_cols].mean()
+            pd_age_group_mean = df_pd_3.groupby("age_group")[numeric_cols].mean()
+            all_age_group_mean = results_df_3.groupby("age_group")[numeric_cols].mean()
+            
+            with open(config.training.checkpoint_path + "/age_group_results.txt", "w") as f:
+                f.write("HC by 10years-range:\n")
+                f.write(hc_age_group_mean.to_string())
+                f.write("\n\nPD by 10years-range:\n") 
+                f.write(pd_age_group_mean.to_string())
+                f.write("\n\nAll by 10years-range:\n")
+                f.write(all_age_group_mean.to_string())
+    
+
+            fw = open(config.training.checkpoint_path + "/test_results_average_speaker.txt", "w")
+            for metric in results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns:
+                mean_metric = results_df[metric].mean()
+                std_metric = results_df[metric].std()
+                print(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}")
+                fw.write(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}\n")
+            fw.close()
