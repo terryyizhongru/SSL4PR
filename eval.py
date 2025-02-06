@@ -283,7 +283,7 @@ if __name__ == "__main__":
                 
             # calculate metrics
         m_dict = compute_metrics(
-            test_reference, test_predictions, verbose=config.training.verbose, is_binary_classification=is_binary_classification
+            test_reference, test_predictions, test_predictions_prob, verbose=config.training.verbose, is_binary_classification=is_binary_classification
         )
     
         accuracy = m_dict["accuracy"]

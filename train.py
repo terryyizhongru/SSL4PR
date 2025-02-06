@@ -5,6 +5,7 @@ import random
 import yaml
 import argparse
 from tqdm import tqdm
+import pdb
 
 
 import torch
@@ -125,13 +126,13 @@ def eval_one_epoch(model, eval_dataloader, device, loss_fn, experiment=None, is_
 
     return eval_loss / len(eval_dataloader), reference, predictions, predictions_prob
 
-def compute_metrics(reference, predictions, verbose=False, is_binary_classification=False):
+def compute_metrics(reference, predictions, predictions_prob, verbose=False, is_binary_classification=False):
     
     accuracy = accuracy_score(reference, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(reference, predictions, average="macro")
     if is_binary_classification:
         try:
-            roc_auc = roc_auc_score(reference, predictions)
+            roc_auc = roc_auc_score(reference, predictions_prob)
             cm = confusion_matrix(reference, predictions)
             tp = cm[1, 1]
             tn = cm[0, 0]
@@ -423,7 +424,7 @@ if __name__ == "__main__":
             
             if config.training.validation.active:
                 # validate
-                val_loss, val_reference, val_predictions = eval_one_epoch(
+                val_loss, val_reference, val_predictions, val_predictions_prob = eval_one_epoch(
                     model=model,
                     eval_dataloader=val_dl,
                     device=device,
@@ -434,7 +435,7 @@ if __name__ == "__main__":
 
                 # compute metrics
                 m_dict = compute_metrics(
-                    val_reference, val_predictions, verbose=config.training.verbose, is_binary_classification=is_binary_classification
+                    val_reference, val_predictions, val_predictions_prob, verbose=config.training.verbose, is_binary_classification=is_binary_classification
                 )
                 
                 
@@ -506,7 +507,7 @@ if __name__ == "__main__":
             model.load_state_dict(torch.load(config.training.checkpoint_path + f"/fold_{test_fold}.pt"))
 
         # evaluate
-        test_loss, test_reference, test_predictions = eval_one_epoch(
+        test_loss, test_reference, test_predictions, test_predictions_prob = eval_one_epoch(
             model=model,
             eval_dataloader=test_dl,
             device=device,
@@ -516,7 +517,7 @@ if __name__ == "__main__":
 
         # calculate metrics
         m_dict = compute_metrics(
-            test_reference, test_predictions, verbose=config.training.verbose, is_binary_classification=is_binary_classification
+            test_reference, test_predictions, test_predictions_prob, verbose=config.training.verbose, is_binary_classification=is_binary_classification
         )
         
         accuracy = m_dict["accuracy"]
