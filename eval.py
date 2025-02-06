@@ -31,24 +31,26 @@ from train import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-def compute_metrics_by_speaker(spk_metrics, spk_ids, reference, predictions, verbose=False, is_binary_classification=False):
+def compute_metrics_by_speaker(spk_metrics, spk_ids, reference, predictions, predictions_prob, verbose=False, is_binary_classification=False):
     
     if len(spk_ids) != len(reference) or len(spk_ids) != len(predictions):
         print("Lengths of spkids, reference, and predictions do not match")
         return None
     # print(spk_ids, reference, predictions)
-    spk_dict = defaultdict(lambda: {"reference": [], "prediction": []})
-    for s, r, p in zip(spk_ids, reference, predictions):
+    spk_dict = defaultdict(lambda: {"reference": [], "prediction": [] , "prediction_prob": []})
+    for s, r, p, pp in zip(spk_ids, reference, predictions, predictions_prob):
         spk_dict[s]["reference"].append(r)
         spk_dict[s]["prediction"].append(p)
+        spk_dict[s]["prediction_prob"].append(pp)
 
     
     for spk in spk_dict.keys():
         reference = spk_dict[spk]["reference"]
         predictions = spk_dict[spk]["prediction"]
+        predictions_prob = spk_dict[spk]["prediction_prob"]
         # print(reference, predictions)
         m_dict = compute_metrics_one(
-            reference, predictions, verbose=verbose, is_binary_classification=is_binary_classification
+            reference, predictions, predictions_prob, verbose=verbose, is_binary_classification=is_binary_classification
         )
         spk_metrics[spk] = m_dict
 
@@ -123,7 +125,7 @@ def load_pcgita_metadata(csv_path):
     return data_dict
 
 
-def compute_metrics_one(reference, predictions, verbose=False, is_binary_classification=False):
+def compute_metrics_one(reference, predictions, predictions_prob, verbose=False, is_binary_classification=False):
     
     accuracy = accuracy_score(reference, predictions)
     precision, recall, f1, _ = precision_recall_fscore_support(reference, predictions, average="macro")
@@ -143,6 +145,8 @@ def compute_metrics_one(reference, predictions, verbose=False, is_binary_classif
             sensitivity = 0.0
             specificity = 0.0
 
+    average_confidence = 1 - np.mean(np.abs(np.array(predictions_prob) - np.array(predictions)))
+    
         
     return {
         "accuracy": accuracy,
@@ -153,6 +157,7 @@ def compute_metrics_one(reference, predictions, verbose=False, is_binary_classif
         "sensitivity": sensitivity,
         "specificity": specificity,
         "balanced_accuracy": (sensitivity + specificity) / 2,
+        "average_confidence": average_confidence,
     }
 
 if __name__ == "__main__":
@@ -232,7 +237,7 @@ if __name__ == "__main__":
         
             
         # evaluate
-        test_loss, test_reference, test_predictions = eval_one_epoch(
+        test_loss, test_reference, test_predictions, test_predictions_prob = eval_one_epoch(
             model=model,
             eval_dataloader=test_dl,
             device=device,
@@ -251,7 +256,7 @@ if __name__ == "__main__":
 
             spk_m_dict = {}
             spk_m_dict = compute_metrics_by_speaker(
-                spk_m_dict, test_spk_ids, test_reference, test_predictions, verbose=config.training.verbose, is_binary_classification=is_binary_classification
+                spk_m_dict, test_spk_ids, test_reference, test_predictions, test_predictions_prob, verbose=config.training.verbose, is_binary_classification=is_binary_classification
             )
 
             print(spk_m_dict)
@@ -265,6 +270,8 @@ if __name__ == "__main__":
                 test_results_by_speaker["sensitivity"][spk_id] = spk_m_dict[spk_id]["sensitivity"]
                 test_results_by_speaker["specificity"][spk_id] = spk_m_dict[spk_id]["specificity"]
                 test_results_by_speaker["balanced_accuracy"][spk_id] = spk_m_dict[spk_id]["balanced_accuracy"]
+                test_results_by_speaker["average_confidence"][spk_id] = spk_m_dict[spk_id]["average_confidence"]
+
                 if config.training.validation.dataset == "pcgita":
                     test_results_by_speaker["UPDRS"][spk_id] = metadata_dict[spk_id]["UPDRS"]
                     test_results_by_speaker["UPDRS-speech"][spk_id] = metadata_dict[spk_id]["UPDRS-speech"]
@@ -334,7 +341,7 @@ if __name__ == "__main__":
             demo_dict = load_demographics(DEMOGR_FILE)
             results_df['sex'] = results_df['fold_or_id'].apply(lambda x: demo_dict.get(str(x), ('',''))[1])
             results_df['age'] = results_df['fold_or_id'].apply(lambda x: float(demo_dict.get(str(x), ('',''))[0]))
-            results_df = results_df[['fold_or_id', 'accuracy', 'sex', 'age']]
+            results_df = results_df[['fold_or_id', 'accuracy', 'sex', 'age', 'average_confidence']]
 
             df_hc = results_df[results_df['fold_or_id'].astype(int) < 2200].sort_values(by="accuracy", ascending=True)
             df_pd = results_df[results_df['fold_or_id'].astype(int) >= 2200].sort_values(by="accuracy", ascending=True)

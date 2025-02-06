@@ -101,6 +101,7 @@ def eval_one_epoch(model, eval_dataloader, device, loss_fn, experiment=None, is_
     eval_loss = 0.0
     reference = []
     predictions = []
+    predictions_prob = []
 
     with torch.no_grad():
         for batch in p_bar:
@@ -119,8 +120,10 @@ def eval_one_epoch(model, eval_dataloader, device, loss_fn, experiment=None, is_
             else: predictions.extend(torch.argmax(outputs, dim=-1).cpu().numpy().astype(int))
 
             p_bar.set_postfix({"loss": loss.item()})
+            predictions_prob.extend(outputs.cpu().numpy())
 
-    return eval_loss / len(eval_dataloader), reference, predictions
+
+    return eval_loss / len(eval_dataloader), reference, predictions, predictions_prob
 
 def compute_metrics(reference, predictions, verbose=False, is_binary_classification=False):
     
