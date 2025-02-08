@@ -435,7 +435,6 @@ if __name__ == "__main__":
             df_hc_3["age_group"] = pd.cut(df_hc["age"], bins=bins_3, right=False, labels=labels_3)
             df_pd_3["age_group"] = pd.cut(df_pd["age"], bins=bins_3, right=False, labels=labels_3)
             results_df_3["age_group"] = pd.cut(results_df["age"], bins=bins_3, right=False, labels=labels_3)
-            pdb.set_trace()
             numeric_cols = results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns
             # hc_age_group_mean = df_hc_3.drop(['fold_or_id', 'sex'], axis=1).select_dtypes(include=['number']).columns
             hc_age_group_mean = df_hc_3.groupby("age_group")[numeric_cols].mean()
