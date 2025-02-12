@@ -320,17 +320,21 @@ if __name__ == "__main__":
     results_df.index.name = "fold_or_id"
     results_df.reset_index(inplace=True)
     
-    results_df.to_csv(config.training.checkpoint_path + "/test_results_all_folds.csv", index=False)
+    results_df.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_all_folds.csv", index=False)
 
-    fw = open(config.training.checkpoint_path + "/test_results_average_fold.txt", "w")
+    fw = open(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_average_fold.txt", "w")
     
     for metric in results_df.select_dtypes(include=['number']).columns:
+        if metric == 'fold_or_id':
+            continue
         mean_metric = results_df[metric].mean()
         std_metric = results_df[metric].std()
         print(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}")
         fw.write(f"{metric}: {mean_metric*100:.2f} +/- {std_metric*100:.3f}\n")
     
     fw.close()
+    # os.system(f"cp {config.training.checkpoint_path}/test_results_{config.training.validation.dataset}_average_fold.txt {config.training.checkpoint_path}/test_results.txt")
+
     
     if config.training.validation.by_speaker or config.training.validation.by_gender:
         if config.training.validation.dataset == "TT":
@@ -346,14 +350,14 @@ if __name__ == "__main__":
             df_hc = results_df[results_df['fold_or_id'].astype(int) < 2200].sort_values(by="accuracy", ascending=True)
             df_pd = results_df[results_df['fold_or_id'].astype(int) >= 2200].sort_values(by="accuracy", ascending=True)
             results_df = results_df.sort_values(by="accuracy", ascending=True)
-            results_df.to_csv(config.training.checkpoint_path + "/test_results_by_speaker.csv", index=False) 
-            df_hc.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_hc.csv", index=False)
-            df_pd.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_pd.csv", index=False)
+            results_df.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_speaker.csv", index=False) 
+            df_hc.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_speaker_hc.csv", index=False)
+            df_pd.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_speaker_pd.csv", index=False)
 
             # if config.training.validation.by_gender:
             numeric_cols = results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns
             grouped_df = results_df.groupby('sex')[numeric_cols].mean()
-            grouped_df.to_csv(config.training.checkpoint_path + "/test_results_by_sex.csv", index=True)
+            grouped_df.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_sex.csv", index=True)
 
             # cal age range
             bins_3 = [54, 65, 75, 85]
@@ -397,7 +401,7 @@ if __name__ == "__main__":
                 f.write("\n\nAll by 5-year steps:\n")
                 f.write(all_age_group_5yr_mean.to_string())
 
-            fw = open(config.training.checkpoint_path + "/test_results_average_speaker.txt", "w")
+            fw = open(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_average_speaker.txt", "w")
             for metric in results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns:
                 mean_metric = results_df[metric].mean()
                 std_metric = results_df[metric].std()
@@ -417,14 +421,14 @@ if __name__ == "__main__":
             df_hc = results_df[results_df['status']=='hc'].sort_values(by="accuracy", ascending=True)
             df_pd = results_df[results_df['status']=='pd'].sort_values(by="accuracy", ascending=True)
             results_df = results_df.sort_values(by="accuracy", ascending=True)
-            results_df.to_csv(config.training.checkpoint_path + "/test_results_by_speaker.csv", index=False) 
-            df_hc.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_hc.csv", index=False)
-            df_pd.to_csv(config.training.checkpoint_path + "/test_results_by_speaker_pd.csv", index=False)
+            results_df.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_speaker.csv", index=False) 
+            df_hc.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_speaker_hc.csv", index=False)
+            df_pd.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_speaker_pd.csv", index=False)
 
             # if config.training.validation.by_gender:
             numeric_cols = results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns
             grouped_df = results_df.groupby('sex')[numeric_cols].mean()
-            grouped_df.to_csv(config.training.checkpoint_path + "/test_results_by_sex.csv", index=True)
+            grouped_df.to_csv(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_by_sex.csv", index=True)
 
                       # cal age range
             bins_3 = [30, 40, 50, 60, 70, 80, 90]  # 6 bins covering 30-90
@@ -450,7 +454,7 @@ if __name__ == "__main__":
                 f.write(all_age_group_mean.to_string())
     
 
-            fw = open(config.training.checkpoint_path + "/test_results_average_speaker.txt", "w")
+            fw = open(config.training.checkpoint_path + "/test_results_" + config.training.validation.dataset + "_average_speaker.txt", "w")
             for metric in results_df.drop(['fold_or_id'], axis=1).select_dtypes(include=['number']).columns:
                 mean_metric = results_df[metric].mean()
                 std_metric = results_df[metric].std()

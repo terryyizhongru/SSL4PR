@@ -1,5 +1,6 @@
 data:
-  fold_root_path: "/home/yzhong/gits/SSL4PR/pcgita_splits/"
+  #fold_root_path: "/home/yzhong/gits/SSL4PR/pcgita_splits/"
+  fold_root_path: "~/gits/TurnTakingPD/sync_private/splits/balancedmerged_wavs.txt_10fold"
   max_length_in_seconds: 10
   padding: max_length
   truncation: true
@@ -68,7 +69,7 @@ training:
     metric_lower_is_better: false
     by_speaker: true
     by_gender: true
-    dataset: "pcgita" # pcgita, TT
+    dataset: "TT" # pcgita, TT
 
   label_key: "status" # status, UPDRS-speech
 

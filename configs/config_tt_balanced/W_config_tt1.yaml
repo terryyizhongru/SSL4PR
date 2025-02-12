@@ -1,6 +1,6 @@
 data:
-  fold_root_path: "/home/yzhong/gits/SSL4PR/pcgita_splits/"
-  max_length_in_seconds: 10
+  fold_root_path: "/home/yzhong/gits/TurnTakingPD/sync_private/splits/balanced_batch1234_wavlist_clean.txt_10fold/"
+  max_length_in_seconds: 5
   padding: max_length
   truncation: true
   ssl: true
@@ -41,19 +41,19 @@ model:
 
 training:
   # checkpoint_path: "/data/storage1t//"
-  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS_tt_balanced_merged_random1/"
-  batch_size: 16
+  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/Multimodal_WS_tt_balanced_random1"
+  batch_size: 64
   gradient_accumulation_steps: 1
   num_epochs: 10
   learning_rate: 0.0001
   weight_decay: 0.01
   num_workers: 8
   pin_memory: true
-  seed: 42
+  seed: 1
   verbose: true
 
   use_cuda: true
-  multi_gpu: false
+  multi_gpu: true
 
   use_comet: true
   comet_project_name: "ssl4pr"
@@ -63,12 +63,12 @@ training:
     active: true
     validation_split: 0.1
     validation_type: "random" # random, speaker
+
     metric: accuracy # loss, accuracy, f1, precision, recall
     metric_lower_is_better: false
     by_speaker: true
     by_gender: true
-    dataset: "pcgita" # pcgita, TT
-
+    dataset: "TT" # pcgita, TT
 
   label_key: "status" # status, UPDRS-speech
 
