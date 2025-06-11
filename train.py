@@ -5,7 +5,6 @@ import random
 import yaml
 import argparse
 from tqdm import tqdm
-import pdb
 
 
 import torch
@@ -26,7 +25,6 @@ from addict import Dict
 
 import numpy as np
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def set_all_seeds(seed):
     try:
@@ -211,7 +209,7 @@ def get_dataloaders(train_path, test_path, class_mapping, config):
             unique_speaker_ids = list(set(speaker_ids))
             unique_speaker_ids.sort()
             random.shuffle(unique_speaker_ids)
-            seed = config.training.seed
+            seed = 42
             flag = False
             while not flag:
                 train_speaker_ids, val_speaker_ids = train_test_split(
@@ -324,8 +322,8 @@ if __name__ == "__main__":
     # create comet experiment if needed
     if config.training.use_comet:
         experiment = Experiment(
-            api_key="zAyPDMX062pRKbbjm6JY6z6RP",
-            workspace="terryyizhongru",
+            api_key=os.environ["COMET_API_KEY"],
+            workspace=os.environ["COMET_WORKSPACE"],
             project_name=config.training.comet_project_name,
         )
         experiment.set_name(config.training.comet_experiment_name)

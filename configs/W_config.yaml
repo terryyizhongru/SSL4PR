@@ -40,8 +40,7 @@ model:
   
 
 training:
-  # checkpoint_path: "/data/storage1t//"
-  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/replicate4"
+  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/replicate"
   batch_size: 16
   gradient_accumulation_steps: 1
   num_epochs: 10
@@ -49,7 +48,7 @@ training:
   weight_decay: 0.01
   num_workers: 8
   pin_memory: true
-  seed: 142
+  seed: 42
   verbose: true
 
   use_cuda: true

@@ -40,8 +40,7 @@ model:
   
 
 training:
-  # checkpoint_path: "/data/storage1t//"
-  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/replicate4"
+  checkpoint_path: "/data/storage1t/exps/SSL4PR/checkpoints/replicate"
   batch_size: 16
   gradient_accumulation_steps: 1
   num_epochs: 10

@@ -57,7 +57,7 @@ def compute_metrics_by_speaker(spk_metrics, spk_ids, reference, predictions, pre
     return spk_metrics
 
 
-DEMOGR_FILE = "/home/yzhong/gits/TurnTakingPD/sync_private/demogr_perpp.txt"
+DEMOGR_FILE = "TurnTakingPD/dummy_demogr_perpp.txt"
 
 def load_demographics(file_path):
     demogr = {}
