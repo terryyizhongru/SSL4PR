@@ -55,6 +55,7 @@ class SSLClassificationModel(nn.Module):
         self.num_layers = self.config.model.classifier_num_layers
         self.hidden_size = self.config.model.classifier_hidden_size
         self.dropout = self.config.model.dropout
+        self.label_key = self.config.training.label_key
 
         self.pooling_embedding_dim = 0
         self.global_embedding_dim = 0
@@ -195,7 +196,7 @@ class SSLClassificationModel(nn.Module):
                 )
             )
 
-        if self.num_classes == 2:
+        if self.label_key == 'status' and self.num_classes == 2:
             # binary classification
             classifier.add_module(
                 "final_layer",
@@ -205,17 +206,21 @@ class SSLClassificationModel(nn.Module):
                 "final_layer_activation",
                 nn.Sigmoid()
             )
+        elif self.num_classes == 1:
+            # regression - single output, no activation
+            classifier.add_module(
+                "final_layer",
+                nn.Linear(self.hidden_size, 1)
+            )
+            # No activation for regression
         else:
-            # multi-class classification
+            # multi-class classification or CORAL
             classifier.add_module(
                 "final_layer",
                 nn.Linear(self.hidden_size, self.num_classes)
             )
-            # no softmax for cross-entropy loss
-            # classifier.add_module(
-            #     "final_layer_activation",
-            #     nn.Softmax(dim=-1)
-            # )
+            # For CORAL, we'll apply sigmoid in the loss calculation
+            # For regular classification, no softmax for cross-entropy loss
 
         return classifier, pooling_layer
 

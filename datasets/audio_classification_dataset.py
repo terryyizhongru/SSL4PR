@@ -87,6 +87,9 @@ class AudioClassificationDataset(Dataset):
             item["magnitudes"] = magnitude
 
         # check if binary classification from class_mapping
+        # print(f"Class mapping: {self.class_mapping}")
+        # print(self.labels)
+        
         if len(self.class_mapping) == 2:
             item["labels"] = torch.tensor(self.class_mapping[self.labels[idx]], dtype=torch.float)
         else:
