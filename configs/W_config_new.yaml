@@ -6,7 +6,7 @@ data:
   ssl: true
   magnitude: false
   articulation: false
-  num_folds: 2
+  num_folds: 10
   sample_rate: 16000
   random_crop_longer_audio: true
   repeat_shorter_audio: true
@@ -42,8 +42,8 @@ model:
 training:
   checkpoint_path: "/data/storage1t/Turntaking/exps/SSL4PR_multi/checkpoints/test"
   batch_size: 16
-  gradient_accumulation_steps: 1
-  num_epochs: 1
+  gradient_accumulation_steps: 4
+  num_epochs: 10
   learning_rate: 0.0001
   weight_decay: 0.01
   num_workers: 8

@@ -184,9 +184,6 @@ def eval_one_epoch(model, eval_dataloader, device, loss_fn, experiment=None, is_
                 predictions.extend(torch.argmax(outputs, dim=-1).cpu().numpy().astype(int))
                 
             
-            print(f"labels:" , labels)
-            print("predictions:", predictions[-10:])
-            print(f"n_classes: {n_classes}")
 
 
             p_bar.set_postfix({"loss": loss.item()})
