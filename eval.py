@@ -172,8 +172,8 @@ if __name__ == "__main__":
     # create comet experiment if needed
     if config.training.use_comet:
         experiment = Experiment(
-            api_key="zAyPDMX062pRKbbjm6JY6z6RP",
-            workspace="terryyizhongru",
+            api_key=os.getenv("COMET_API_KEY"),
+            workspace=os.getenv("COMET_WORKSPACE"),
             project_name=config.training.comet_project_name,
         )
         experiment.set_name(config.training.comet_experiment_name)
